@@ -14,7 +14,6 @@ import {
 
 import "./EvidenceAnalysis.css";
 
-// Deployed Render backend URL
 const API_URL =
   import.meta.env.VITE_API_URL ||
   "https://verifex-ai.onrender.com";
@@ -114,51 +113,84 @@ export default function EvidenceAgent({
     }
   }
 
-  function normalizeEvidenceResult(item, index, validClaims) {
+  function normalizeEvidenceResult(
+    item,
+    index,
+    validClaims
+  ) {
+    const mappedEvidence = Array.isArray(item?.evidence)
+      ? item.evidence
+      : [];
+
+    // Use explicit backend classifications whenever supplied.
+    // If the classification arrays are missing, derive them
+    // from the stance of the mapped evidence.
+    const supportingEvidence = Array.isArray(
+      item?.supporting_evidence
+    )
+      ? item.supporting_evidence
+      : mappedEvidence.filter(
+          (entry) => entry?.stance === "supports"
+        );
+
+    const contradictingEvidence = Array.isArray(
+      item?.contradicting_evidence
+    )
+      ? item.contradicting_evidence
+      : mappedEvidence.filter(
+          (entry) => entry?.stance === "contradicts"
+        );
+
+    const contextualEvidence = Array.isArray(
+      item?.contextual_evidence
+    )
+      ? item.contextual_evidence
+      : mappedEvidence.filter(
+          (entry) => entry?.stance === "context"
+        );
+
     return {
       ...item,
+
       claim_text:
         item?.claim_text ||
         validClaims[index]?.claim_text ||
         "",
+
       assessment:
         item?.assessment ||
         item?.evidence_status ||
         "requires_review",
+
       evidence_summary:
         item?.evidence_summary ||
         item?.explanation ||
         "",
+
       classification_status:
-        item?.classification_status || "unavailable",
+        item?.classification_status ||
+        (validClaims[index]?.sources?.length
+          ? "incomplete"
+          : "no_sources"),
+
       classification_reason:
         item?.classification_reason || null,
-      evidence: Array.isArray(item?.evidence)
-        ? item.evidence
-        : [],
-      supporting_evidence: Array.isArray(
-        item?.supporting_evidence
-      )
-        ? item.supporting_evidence
-        : [],
-      contradicting_evidence: Array.isArray(
-        item?.contradicting_evidence
-      )
-        ? item.contradicting_evidence
-        : [],
-      contextual_evidence: Array.isArray(
-        item?.contextual_evidence
-      )
-        ? item.contextual_evidence
-        : [],
+
+      evidence: mappedEvidence,
+      supporting_evidence: supportingEvidence,
+      contradicting_evidence: contradictingEvidence,
+      contextual_evidence: contextualEvidence,
+
       missing_evidence: Array.isArray(
         item?.missing_evidence
       )
         ? item.missing_evidence
         : [],
+
       limitations: Array.isArray(item?.limitations)
         ? item.limitations
         : [],
+
       requires_human_review:
         item?.requires_human_review !== false,
     };
@@ -170,7 +202,9 @@ export default function EvidenceAgent({
         claim_text: getClaimText(claim),
         sources: getSources(claim),
       }))
-      .filter((claim) => claim.claim_text.length > 0)
+      .filter(
+        (claim) => claim.claim_text.length > 0
+      )
       .slice(0, 5);
 
     if (validClaims.length === 0) {
@@ -191,10 +225,11 @@ export default function EvidenceAgent({
       return;
     }
 
-    const hasInvalidUrl = validClaims.some((claim) =>
-      claim.sources.some(
-        (source) => !isValidHttpUrl(source.url)
-      )
+    const hasInvalidUrl = validClaims.some(
+      (claim) =>
+        claim.sources.some(
+          (source) => !isValidHttpUrl(source.url)
+        )
     );
 
     if (hasInvalidUrl) {
@@ -209,6 +244,16 @@ export default function EvidenceAgent({
     setEvidence(null);
 
     try {
+      const payload = {
+        claims: validClaims,
+      };
+
+      // Debug: inspect the exact claims and sources sent.
+      console.log(
+        "Evidence Agent request payload:",
+        payload
+      );
+
       const response = await fetch(
         `${API_URL}/api/evidence/analyze`,
         {
@@ -216,9 +261,7 @@ export default function EvidenceAgent({
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            claims: validClaims,
-          }),
+          body: JSON.stringify(payload),
         }
       );
 
@@ -232,6 +275,12 @@ export default function EvidenceAgent({
           "The server returned an invalid response."
         );
       }
+
+      // Debug: inspect the response from the live API.
+      console.log(
+        "Evidence Agent API response:",
+        data
+      );
 
       if (!response.ok) {
         throw new Error(
@@ -252,21 +301,59 @@ export default function EvidenceAgent({
         );
       }
 
-      const normalizedEvidence = {
-        ...evidenceData,
-        summary:
-          typeof evidenceData.summary === "string"
-            ? evidenceData.summary
-            : "",
-        results: Array.isArray(evidenceData.results)
-          ? evidenceData.results.map((item, index) =>
+      const normalizedResults = Array.isArray(
+        evidenceData.results
+      )
+        ? evidenceData.results.map(
+            (item, index) =>
               normalizeEvidenceResult(
                 item,
                 index,
                 validClaims
               )
-            )
-          : [],
+          )
+        : [];
+
+      // Debug: check the final values used by the UI.
+      console.log(
+        "Normalized Evidence Results:",
+        normalizedResults
+      );
+
+      normalizedResults.forEach((item, index) => {
+        console.log(`Claim ${index + 1}:`, item.claim_text);
+        console.log(
+          "Classification:",
+          item.classification_status
+        );
+        console.log(
+          "Mapped:",
+          item.evidence.length
+        );
+        console.log(
+          "Supporting:",
+          item.supporting_evidence.length
+        );
+        console.log(
+          "Contradicting:",
+          item.contradicting_evidence.length
+        );
+        console.log(
+          "Contextual:",
+          item.contextual_evidence.length
+        );
+      });
+
+      const normalizedEvidence = {
+        ...evidenceData,
+
+        summary:
+          typeof evidenceData.summary === "string"
+            ? evidenceData.summary
+            : "",
+
+        results: normalizedResults,
+
         limitations: Array.isArray(
           evidenceData.limitations
         )
@@ -277,7 +364,10 @@ export default function EvidenceAgent({
       setEvidence(normalizedEvidence);
       onResults?.(normalizedEvidence);
     } catch (err) {
-      console.error("Evidence Agent error:", err);
+      console.error(
+        "Evidence Agent error:",
+        err
+      );
 
       setError(
         err?.message ||
@@ -346,7 +436,9 @@ export default function EvidenceAgent({
           type="button"
           className="evidence-agent-button"
           onClick={runEvidenceAnalysis}
-          disabled={loading || displayClaimCount === 0}
+          disabled={
+            loading || displayClaimCount === 0
+          }
         >
           {loading ? (
             <>
@@ -408,7 +500,8 @@ export default function EvidenceAgent({
                 item.contradicting_evidence || [];
               const contextual =
                 item.contextual_evidence || [];
-              const missing = item.missing_evidence || [];
+              const missing =
+                item.missing_evidence || [];
               const claimLimitations =
                 item.limitations || [];
 
