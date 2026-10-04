@@ -39,3 +39,4 @@ pytesseract>=0.3.13
 python-multipart>=0.0.20
 groq>=0.30.0
 langchain-groq
+tavily-python>=0.5.0
