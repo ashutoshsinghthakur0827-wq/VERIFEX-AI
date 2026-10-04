@@ -14,8 +14,10 @@ import {
 
 import "./EvidenceAnalysis.css";
 
+// Deployed Render backend URL
 const API_URL =
-  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+  import.meta.env.VITE_API_URL ||
+  "https://verifex-ai.onrender.com";
 
 export default function EvidenceAgent({
   claims = [],
@@ -256,6 +258,8 @@ export default function EvidenceAgent({
       setEvidence(normalizedEvidence);
       onResults?.(normalizedEvidence);
     } catch (err) {
+      console.error("Evidence Agent error:", err);
+
       setError(
         err?.message ||
           "Unable to connect to the Evidence Agent."
@@ -307,7 +311,6 @@ export default function EvidenceAgent({
 
       <div className="evidence-agent-info">
         <FileSearch size={18} />
-
         <p>
           Evidence analysis uses available research
           sources. Retrieved sources are leads and may
