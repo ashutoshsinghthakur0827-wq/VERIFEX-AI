@@ -1,0 +1,141 @@
+.research-agent-panel {
+  margin-top: 22px;
+  padding: 22px;
+  border: 1px solid var(--border-color, #343434);
+  border-radius: 18px;
+  background: var(--card-bg, #171717);
+  color: var(--text-color, #f5f5f5);
+}
+
+.research-agent-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.research-agent-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: rgba(220, 38, 38, 0.13);
+  color: #ff6b6b;
+}
+
+.research-agent-heading h2 {
+  margin: 0 0 5px;
+  font-size: 19px;
+}
+
+.research-agent-heading p {
+  margin: 0;
+  color: var(--muted-color, #aaa);
+  font-size: 13px;
+}
+
+.research-agent-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 16px;
+  border: 0;
+  border-radius: 10px;
+  background: #dc2626;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.research-agent-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.research-error {
+  color: #ff7777;
+}
+
+.research-results {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.research-claim,
+.research-limitations {
+  padding: 15px;
+  border: 1px solid var(--border-color, #343434);
+  border-radius: 12px;
+  background: var(--input-bg, #101010);
+}
+
+.research-claim h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.research-claim-text {
+  line-height: 1.55;
+}
+
+.research-claim small,
+.research-source small {
+  color: var(--muted-color, #aaa);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.research-source {
+  margin-top: 12px;
+  padding: 13px;
+  border: 1px solid var(--border-color, #343434);
+  border-radius: 10px;
+  background: var(--card-bg, #171717);
+}
+
+.research-source a {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-color, #f5f5f5);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.research-source a:hover {
+  color: #ff7777;
+}
+
+.research-source p {
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.research-limitations ul {
+  padding-left: 20px;
+  line-height: 1.6;
+}
+
+.research-spin {
+  animation: research-spin 1s linear infinite;
+}
+
+@keyframes research-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 600px) {
+  .research-agent-panel {
+    padding: 15px;
+  }
+
+  .research-agent-button {
+    width: 100%;
+    justify-content: center;
+  }
+}
