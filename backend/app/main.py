@@ -19,17 +19,15 @@ from app.api.routes.report import router as report_router
 
 
 # CORS configuration
-# Set FRONTEND_URL in Render to your actual Vercel domain.
 VERCEL_URL = os.getenv("FRONTEND_URL", "").strip().rstrip("/")
 
 allowed_origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "https://verifex-ai.vercel.app",
-    "https://verifex-cihba2ew9-hack-tech.vercel.app",
 ]
 
-if VERCEL_URL:
+if VERCEL_URL and VERCEL_URL not in allowed_origins:
     allowed_origins.append(VERCEL_URL)
 
 
@@ -44,10 +42,11 @@ app = FastAPI(
 )
 
 
-# CORS middleware for React + Vite frontend
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    allow_origin_regex=r"https://verifex-[a-z0-9-]+-hack-tech\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -55,7 +54,6 @@ app.add_middleware(
 
 
 # Create database tables
-# Ensure DATABASE_URL is correctly configured in Render.
 @app.on_event("startup")
 def create_database_tables():
     Base.metadata.create_all(bind=engine)
