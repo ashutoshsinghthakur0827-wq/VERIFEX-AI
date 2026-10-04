@@ -1,7 +1,7 @@
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field
 
 
 class EvidenceSource(BaseModel):
@@ -26,7 +26,7 @@ class EvidenceItem(BaseModel):
     matching_terms: list[str] = Field(default_factory=list)
     explanation: str
 
-    # Semantic classification fields
+    # Preliminary semantic classification
     stance: Literal[
         "supports",
         "contradicts",
@@ -35,6 +35,7 @@ class EvidenceItem(BaseModel):
         "requires_review",
     ] = "requires_review"
 
+    # Source reliability is not automatically verified
     source_reliability: Literal[
         "high",
         "moderate",
@@ -64,21 +65,39 @@ class ClaimEvidenceResult(BaseModel):
 
     # Existing backend fields
     evidence: list[EvidenceItem] = Field(default_factory=list)
-    source_assessments: list[SourceAssessment] = Field(default_factory=list)
+    source_assessments: list[SourceAssessment] = Field(
+        default_factory=list
+    )
     evidence_status: str = "inconclusive"
     explanation: str = ""
 
     # Frontend-compatible fields
     assessment: str = "requires_review"
     evidence_summary: str = ""
-    supporting_evidence: list[EvidenceItem] = Field(default_factory=list)
-    contradicting_evidence: list[EvidenceItem] = Field(default_factory=list)
+    supporting_evidence: list[EvidenceItem] = Field(
+        default_factory=list
+    )
+    contradicting_evidence: list[EvidenceItem] = Field(
+        default_factory=list
+    )
     missing_evidence: list[str] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
 
     # Additional semantic verification fields
-    contextual_evidence: list[EvidenceItem] = Field(default_factory=list)
+    contextual_evidence: list[EvidenceItem] = Field(
+        default_factory=list
+    )
     requires_human_review: bool = True
+
+    # Classification status and error handling
+    classification_status: Literal[
+        "completed",
+        "incomplete",
+        "unavailable",
+        "no_sources",
+    ] = "unavailable"
+
+    classification_reason: Optional[str] = None
 
 
 class EvidenceAnalysisResponse(BaseModel):
