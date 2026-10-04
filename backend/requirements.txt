@@ -32,3 +32,4 @@ websockets==17.1
 reportlab
 json-repair
 requests>=2.32.3
+beautifulsoup4>=4.12.0
