@@ -9,7 +9,8 @@ import {
 
 import "./ResearchAgent.css";
 
-const API_URL = "http://127.0.0.1:8000";
+// Deployed Render backend
+const API_URL = "https://verifex-ai.onrender.com";
 
 export default function ResearchAgent({
   claims = [],
@@ -67,7 +68,7 @@ export default function ResearchAgent({
         }
       );
 
-      // Safely read the server response
+      // Safely read server response
       const data = await response.json();
 
       if (!response.ok) {
@@ -82,59 +83,69 @@ export default function ResearchAgent({
       // { "research": { "results": [], "limitations": [] } }
       const researchData = data?.research;
 
-      if (!researchData || !Array.isArray(researchData.results)) {
+      if (
+        !researchData ||
+        !Array.isArray(researchData.results)
+      ) {
         throw new Error(
           "Invalid research response. Please check the backend API."
         );
       }
 
-      // Normalize each result so the UI can safely display it
-      const results = researchData.results.map((item, index) => ({
-        claim_text:
-          typeof item?.claim_text === "string"
-            ? item.claim_text
-            : claimTexts[index] || "Claim text unavailable.",
+      // Normalize each result for safe UI display
+      const results = researchData.results.map(
+        (item, index) => ({
+          claim_text:
+            typeof item?.claim_text === "string"
+              ? item.claim_text
+              : claimTexts[index] || "Claim text unavailable.",
 
-        search_query:
-          typeof item?.search_query === "string"
-            ? item.search_query
-            : "",
+          search_query:
+            typeof item?.search_query === "string"
+              ? item.search_query
+              : "",
 
-        status:
-          typeof item?.status === "string"
-            ? item.status
-            : "completed",
+          status:
+            typeof item?.status === "string"
+              ? item.status
+              : "completed",
 
-        message:
-          typeof item?.message === "string"
-            ? item.message
-            : "",
+          message:
+            typeof item?.message === "string"
+              ? item.message
+              : "",
 
-        sources: Array.isArray(item?.sources)
-          ? item.sources.filter(
-              (source) =>
-                source && typeof source === "object"
-            )
-          : [],
-      }));
+          sources: Array.isArray(item?.sources)
+            ? item.sources.filter(
+                (source) =>
+                  source && typeof source === "object"
+              )
+            : [],
+        })
+      );
 
       const normalizedResearch = {
         ...researchData,
         results,
-        limitations: Array.isArray(researchData.limitations)
+        limitations: Array.isArray(
+          researchData.limitations
+        )
           ? researchData.limitations
           : [],
       };
 
       setResearch(normalizedResearch);
 
-      // Send the same results to App.jsx
-      // so Evidence Analysis can use the research sources
+      // Send results to App.jsx for Evidence Analysis
       onResults?.(results);
     } catch (err) {
+      console.error("Research Agent error:", err);
+
       setError(
-        err?.message || "Unable to retrieve research sources."
+        err?.message ||
+          "Unable to retrieve research sources."
       );
+
       onResults?.([]);
     } finally {
       setLoading(false);
@@ -204,7 +215,8 @@ export default function ResearchAgent({
 
                 {item.status !== "completed" && (
                   <p>
-                    {item.message || "Research was not completed."}
+                    {item.message ||
+                      "Research was not completed."}
                   </p>
                 )}
 
@@ -212,7 +224,11 @@ export default function ResearchAgent({
                   item.sources.map((source, j) => (
                     <article
                       className="research-source"
-                      key={`${source.url || source.title || "source"}-${j}`}
+                      key={`${
+                        source.url ||
+                        source.title ||
+                        "source"
+                      }-${j}`}
                     >
                       {source.url ? (
                         <a
@@ -247,7 +263,9 @@ export default function ResearchAgent({
                     </article>
                   ))
                 ) : (
-                  <p>No sources were found for this claim.</p>
+                  <p>
+                    No sources were found for this claim.
+                  </p>
                 )}
               </div>
             ))
@@ -259,16 +277,19 @@ export default function ResearchAgent({
             <div className="research-limitations">
               <strong>Research limitations</strong>
               <ul>
-                {research.limitations.map((item, i) => (
-                  <li key={i}>{item}</li>
-                ))}
+                {research.limitations.map(
+                  (item, i) => (
+                    <li key={i}>{item}</li>
+                  )
+                )}
               </ul>
             </div>
           )}
 
           <p className="research-note">
-            Retrieved sources are research leads. They are
-            not independently verified evidence or a verdict.
+            Retrieved sources are research leads. They
+            are not independently verified evidence or
+            a verdict.
           </p>
         </div>
       )}
