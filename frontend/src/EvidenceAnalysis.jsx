@@ -29,9 +29,7 @@ export default function EvidenceAgent({
   const [error, setError] = useState("");
 
   function getClaimText(claim) {
-    if (typeof claim === "string") {
-      return claim.trim();
-    }
+    if (typeof claim === "string") return claim.trim();
 
     if (typeof claim?.claim_text === "string") {
       return claim.claim_text.trim();
@@ -113,86 +111,139 @@ export default function EvidenceAgent({
     }
   }
 
+  function getStance(item) {
+    return String(
+      item?.stance ||
+      item?.classification ||
+      item?.label ||
+      ""
+    )
+      .toLowerCase()
+      .trim()
+      .replaceAll("-", "_")
+      .replaceAll(" ", "_");
+  }
+
   function normalizeEvidenceResult(
-    item,
+    item = {},
     index,
     validClaims
   ) {
-    const mappedEvidence = Array.isArray(item?.evidence)
+    const mappedEvidence = Array.isArray(item.evidence)
       ? item.evidence
       : [];
 
-    // Use explicit backend classifications whenever supplied.
-    // If the classification arrays are missing, derive them
-    // from the stance of the mapped evidence.
-    const supportingEvidence = Array.isArray(
-      item?.supporting_evidence
-    )
-      ? item.supporting_evidence
-      : mappedEvidence.filter(
-          (entry) => entry?.stance === "supports"
-        );
+    const supportingStances = [
+      "supports",
+      "supporting",
+      "support",
+      "supports_claim",
+    ];
 
-    const contradictingEvidence = Array.isArray(
-      item?.contradicting_evidence
-    )
-      ? item.contradicting_evidence
-      : mappedEvidence.filter(
-          (entry) => entry?.stance === "contradicts"
-        );
+    const contradictingStances = [
+      "contradicts",
+      "contradicting",
+      "contradict",
+      "contradicts_claim",
+    ];
 
-    const contextualEvidence = Array.isArray(
-      item?.contextual_evidence
-    )
-      ? item.contextual_evidence
-      : mappedEvidence.filter(
-          (entry) => entry?.stance === "context"
-        );
+    const contextualStances = [
+      "context",
+      "contextual",
+      "neutral",
+      "provides_context",
+    ];
+
+    // Derive classifications from the evidence array.
+    const derivedSupporting = mappedEvidence.filter(
+      (entry) =>
+        supportingStances.includes(getStance(entry))
+    );
+
+    const derivedContradicting = mappedEvidence.filter(
+      (entry) =>
+        contradictingStances.includes(getStance(entry))
+    );
+
+    const derivedContextual = mappedEvidence.filter(
+      (entry) =>
+        contextualStances.includes(getStance(entry))
+    );
+
+    // Use non-empty backend arrays first.
+    // If they are empty, fall back to the evidence stances.
+    const supportingEvidence =
+      Array.isArray(item.supporting_evidence) &&
+      item.supporting_evidence.length > 0
+        ? item.supporting_evidence
+        : derivedSupporting;
+
+    const contradictingEvidence =
+      Array.isArray(item.contradicting_evidence) &&
+      item.contradicting_evidence.length > 0
+        ? item.contradicting_evidence
+        : derivedContradicting;
+
+    const contextualEvidence =
+      Array.isArray(item.contextual_evidence) &&
+      item.contextual_evidence.length > 0
+        ? item.contextual_evidence
+        : derivedContextual;
+
+    const sourceCount =
+      validClaims[index]?.sources?.length || 0;
+
+    const classificationStatus =
+      item.classification_status ||
+      (mappedEvidence.length > 0
+        ? "completed"
+        : sourceCount > 0
+        ? "incomplete"
+        : "no_sources");
 
     return {
       ...item,
 
       claim_text:
-        item?.claim_text ||
+        item.claim_text ||
         validClaims[index]?.claim_text ||
         "",
 
       assessment:
-        item?.assessment ||
-        item?.evidence_status ||
+        item.assessment ||
+        item.evidence_status ||
         "requires_review",
 
       evidence_summary:
-        item?.evidence_summary ||
-        item?.explanation ||
+        item.evidence_summary ||
+        item.explanation ||
         "",
 
-      classification_status:
-        item?.classification_status ||
-        (validClaims[index]?.sources?.length
-          ? "incomplete"
-          : "no_sources"),
+      classification_status: classificationStatus,
 
       classification_reason:
-        item?.classification_reason || null,
+        item.classification_reason || null,
 
       evidence: mappedEvidence,
+
       supporting_evidence: supportingEvidence,
+
       contradicting_evidence: contradictingEvidence,
+
       contextual_evidence: contextualEvidence,
 
       missing_evidence: Array.isArray(
-        item?.missing_evidence
+        item.missing_evidence
       )
         ? item.missing_evidence
         : [],
 
-      limitations: Array.isArray(item?.limitations)
+      limitations: Array.isArray(item.limitations)
         ? item.limitations
         : [],
 
       requires_human_review:
-        item?.requires_human_review !== false,
+        item.requires_human_review !== false,
     };
   }
 
@@ -202,9 +253,7 @@ export default function EvidenceAgent({
         claim_text: getClaimText(claim),
         sources: getSources(claim),
       }))
-      .filter(
-        (claim) => claim.claim_text.length > 0
-      )
+      .filter((claim) => claim.claim_text.length > 0)
       .slice(0, 5);
 
     if (validClaims.length === 0) {
@@ -248,7 +297,6 @@ export default function EvidenceAgent({
         claims: validClaims,
       };
 
-      // Debug: inspect the exact claims and sources sent.
       console.log(
         "Evidence Agent request payload:",
         payload
@@ -276,7 +324,6 @@ export default function EvidenceAgent({
         );
       }
 
-      // Debug: inspect the response from the live API.
       console.log(
         "Evidence Agent API response:",
         data
@@ -290,7 +337,10 @@ export default function EvidenceAgent({
         );
       }
 
-      const evidenceData = data?.evidence_analysis;
+      // Support the expected wrapped response and a
+      // direct analysis object, if the backend returns one.
+      const evidenceData =
+        data?.evidence_analysis ?? data;
 
       if (
         !evidenceData ||
@@ -301,23 +351,24 @@ export default function EvidenceAgent({
         );
       }
 
-      const normalizedResults = Array.isArray(
+      const rawResults = Array.isArray(
         evidenceData.results
       )
-        ? evidenceData.results.map(
-            (item, index) =>
-              normalizeEvidenceResult(
-                item,
-                index,
-                validClaims
-              )
-          )
+        ? evidenceData.results
         : [];
 
-      // Debug: check the final values used by the UI.
+      const normalizedResults = rawResults.map(
+        (item, index) =>
+          normalizeEvidenceResult(
+            item,
+            index,
+            validClaims
+          )
+      );
+
       console.log(
-        "Normalized Evidence Results:",
-        normalizedResults
+        "FULL NORMALIZED RESULTS:",
+        JSON.stringify(normalizedResults, null, 2)
       );
 
       normalizedResults.forEach((item, index) => {
@@ -326,10 +377,7 @@ export default function EvidenceAgent({
           "Classification:",
           item.classification_status
         );
-        console.log(
-          "Mapped:",
-          item.evidence.length
-        );
+        console.log("Mapped:", item.evidence.length);
         console.log(
           "Supporting:",
           item.supporting_evidence.length
@@ -346,14 +394,11 @@ export default function EvidenceAgent({
 
       const normalizedEvidence = {
         ...evidenceData,
-
         summary:
           typeof evidenceData.summary === "string"
             ? evidenceData.summary
             : "",
-
         results: normalizedResults,
-
         limitations: Array.isArray(
           evidenceData.limitations
         )
@@ -364,10 +409,7 @@ export default function EvidenceAgent({
       setEvidence(normalizedEvidence);
       onResults?.(normalizedEvidence);
     } catch (err) {
-      console.error(
-        "Evidence Agent error:",
-        err
-      );
+      console.error("Evidence Agent error:", err);
 
       setError(
         err?.message ||
@@ -500,8 +542,7 @@ export default function EvidenceAgent({
                 item.contradicting_evidence || [];
               const contextual =
                 item.contextual_evidence || [];
-              const missing =
-                item.missing_evidence || [];
+              const missing = item.missing_evidence || [];
               const claimLimitations =
                 item.limitations || [];
 
@@ -518,14 +559,13 @@ export default function EvidenceAgent({
               const classificationIncomplete =
                 classificationStatus === "incomplete";
 
-              const classificationMessage =
-                noSources
-                  ? "No research sources were available for classification."
-                  : classificationUnavailable
-                  ? "AI evidence classification is currently unavailable. Supporting and contradicting evidence could not be determined."
-                  : classificationIncomplete
-                  ? "Evidence classification is incomplete. Some excerpts may require manual review."
-                  : null;
+              const classificationMessage = noSources
+                ? "No research sources were available for classification."
+                : classificationUnavailable
+                ? "AI evidence classification is currently unavailable. Supporting and contradicting evidence could not be determined."
+                : classificationIncomplete
+                ? "Evidence classification is incomplete. Some excerpts may require manual review."
+                : null;
 
               return (
                 <article
@@ -591,8 +631,7 @@ export default function EvidenceAgent({
                     icon={<CheckCircle2 size={16} />}
                     items={supporting}
                     emptyText={
-                      classificationUnavailable ||
-                      noSources
+                      classificationUnavailable || noSources
                         ? "Supporting evidence could not be determined."
                         : classificationIncomplete
                         ? "No supporting evidence was confirmed. Some evidence may still need review."
@@ -605,8 +644,7 @@ export default function EvidenceAgent({
                     icon={<ShieldAlert size={16} />}
                     items={contradicting}
                     emptyText={
-                      classificationUnavailable ||
-                      noSources
+                      classificationUnavailable || noSources
                         ? "Contradicting evidence could not be determined."
                         : classificationIncomplete
                         ? "No contradicting evidence was confirmed. Some evidence may still need review."
@@ -639,9 +677,7 @@ export default function EvidenceAgent({
                         ))}
                       </ul>
                     ) : (
-                      <p>
-                        No missing evidence was listed.
-                      </p>
+                      <p>No missing evidence was listed.</p>
                     )}
                   </div>
 
