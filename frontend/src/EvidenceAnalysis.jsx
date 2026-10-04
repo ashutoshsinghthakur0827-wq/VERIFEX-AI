@@ -114,6 +114,56 @@ export default function EvidenceAgent({
     }
   }
 
+  function normalizeEvidenceResult(item, index, validClaims) {
+    return {
+      ...item,
+      claim_text:
+        item?.claim_text ||
+        validClaims[index]?.claim_text ||
+        "",
+      assessment:
+        item?.assessment ||
+        item?.evidence_status ||
+        "requires_review",
+      evidence_summary:
+        item?.evidence_summary ||
+        item?.explanation ||
+        "",
+      classification_status:
+        item?.classification_status || "unavailable",
+      classification_reason:
+        item?.classification_reason || null,
+      evidence: Array.isArray(item?.evidence)
+        ? item.evidence
+        : [],
+      supporting_evidence: Array.isArray(
+        item?.supporting_evidence
+      )
+        ? item.supporting_evidence
+        : [],
+      contradicting_evidence: Array.isArray(
+        item?.contradicting_evidence
+      )
+        ? item.contradicting_evidence
+        : [],
+      contextual_evidence: Array.isArray(
+        item?.contextual_evidence
+      )
+        ? item.contextual_evidence
+        : [],
+      missing_evidence: Array.isArray(
+        item?.missing_evidence
+      )
+        ? item.missing_evidence
+        : [],
+      limitations: Array.isArray(item?.limitations)
+        ? item.limitations
+        : [],
+      requires_human_review:
+        item?.requires_human_review !== false,
+    };
+  }
+
   async function runEvidenceAnalysis() {
     const validClaims = claims
       .map((claim) => ({
@@ -209,44 +259,13 @@ export default function EvidenceAgent({
             ? evidenceData.summary
             : "",
         results: Array.isArray(evidenceData.results)
-          ? evidenceData.results.map((item, index) => ({
-              ...item,
-              claim_text:
-                item?.claim_text ||
-                validClaims[index]?.claim_text ||
-                "",
-              assessment:
-                item?.assessment ||
-                item?.evidence_status ||
-                "requires_review",
-              evidence_summary:
-                item?.evidence_summary ||
-                item?.explanation ||
-                "",
-              evidence: Array.isArray(item?.evidence)
-                ? item.evidence
-                : [],
-              supporting_evidence: Array.isArray(
-                item?.supporting_evidence
+          ? evidenceData.results.map((item, index) =>
+              normalizeEvidenceResult(
+                item,
+                index,
+                validClaims
               )
-                ? item.supporting_evidence
-                : [],
-              contradicting_evidence: Array.isArray(
-                item?.contradicting_evidence
-              )
-                ? item.contradicting_evidence
-                : [],
-              missing_evidence: Array.isArray(
-                item?.missing_evidence
-              )
-                ? item.missing_evidence
-                : [],
-              limitations: Array.isArray(
-                item?.limitations
-              )
-                ? item.limitations
-                : [],
-            }))
+            )
           : [],
         limitations: Array.isArray(
           evidenceData.limitations
@@ -370,7 +389,7 @@ export default function EvidenceAgent({
         <div className="evidence-agent-results">
           <div className="evidence-summary">
             <h3>
-              <CheckCircle2 size={18} />
+              <FileSearch size={18} />
               Evidence Analysis Summary
             </h3>
 
@@ -387,9 +406,33 @@ export default function EvidenceAgent({
                 item.supporting_evidence || [];
               const contradicting =
                 item.contradicting_evidence || [];
+              const contextual =
+                item.contextual_evidence || [];
               const missing = item.missing_evidence || [];
               const claimLimitations =
                 item.limitations || [];
+
+              const classificationStatus =
+                item.classification_status ||
+                "unavailable";
+
+              const classificationUnavailable =
+                classificationStatus === "unavailable";
+
+              const noSources =
+                classificationStatus === "no_sources";
+
+              const classificationIncomplete =
+                classificationStatus === "incomplete";
+
+              const classificationMessage =
+                noSources
+                  ? "No research sources were available for classification."
+                  : classificationUnavailable
+                  ? "AI evidence classification is currently unavailable. Supporting and contradicting evidence could not be determined."
+                  : classificationIncomplete
+                  ? "Evidence classification is incomplete. Some excerpts may require manual review."
+                  : null;
 
               return (
                 <article
@@ -414,11 +457,31 @@ export default function EvidenceAgent({
                     </p>
                   </div>
 
+                  {classificationMessage && (
+                    <div
+                      className="evidence-classification-notice"
+                      role="status"
+                    >
+                      <strong>
+                        <AlertTriangle size={16} />
+                        Classification Notice
+                      </strong>
+
+                      <p>{classificationMessage}</p>
+
+                      {item.classification_reason && (
+                        <small>
+                          Reason:{" "}
+                          {item.classification_reason}
+                        </small>
+                      )}
+                    </div>
+                  )}
+
                   <div className="evidence-assessment">
                     <strong>Evidence Summary</strong>
                     <p>
                       {item.evidence_summary ||
-                        item.explanation ||
                         "No evidence summary was provided."}
                     </p>
                   </div>
@@ -434,14 +497,35 @@ export default function EvidenceAgent({
                     title="Supporting Evidence"
                     icon={<CheckCircle2 size={16} />}
                     items={supporting}
-                    emptyText="Not determined by the current keyword-based analysis."
+                    emptyText={
+                      classificationUnavailable ||
+                      noSources
+                        ? "Supporting evidence could not be determined."
+                        : classificationIncomplete
+                        ? "No supporting evidence was confirmed. Some evidence may still need review."
+                        : "No supporting evidence was identified in the analyzed sources."
+                    }
                   />
 
                   <EvidenceSection
                     title="Contradicting Evidence"
                     icon={<ShieldAlert size={16} />}
                     items={contradicting}
-                    emptyText="Not determined by the current keyword-based analysis."
+                    emptyText={
+                      classificationUnavailable ||
+                      noSources
+                        ? "Contradicting evidence could not be determined."
+                        : classificationIncomplete
+                        ? "No contradicting evidence was confirmed. Some evidence may still need review."
+                        : "No contradicting evidence was identified in the analyzed sources."
+                    }
+                  />
+
+                  <EvidenceSection
+                    title="Contextual Evidence"
+                    icon={<BookOpen size={16} />}
+                    items={contextual}
+                    emptyText="No contextual evidence was classified."
                   />
 
                   <div className="evidence-subsection">
@@ -470,7 +554,10 @@ export default function EvidenceAgent({
 
                   {claimLimitations.length > 0 && (
                     <div className="evidence-subsection">
-                      <h4>Claim Limitations</h4>
+                      <h4>
+                        <AlertTriangle size={16} />
+                        Claim Limitations
+                      </h4>
 
                       <ul>
                         {claimLimitations.map(
@@ -485,6 +572,13 @@ export default function EvidenceAgent({
                         )}
                       </ul>
                     </div>
+                  )}
+
+                  {item.requires_human_review && (
+                    <p className="evidence-agent-note">
+                      Human review is recommended before
+                      relying on this evidence assessment.
+                    </p>
                   )}
                 </article>
               );
@@ -519,8 +613,8 @@ export default function EvidenceAgent({
           <p className="evidence-agent-note">
             Evidence mapping is preliminary. It does not
             independently verify a claim or establish
-            fraud, accuracy, or intent. Human review
-            is recommended.
+            fraud, accuracy, or intent. Human review is
+            recommended.
           </p>
         </div>
       )}
@@ -588,6 +682,7 @@ function EvidenceSource({ source }) {
   const safeUrl = (() => {
     try {
       const parsed = new URL(url);
+
       return ["http:", "https:"].includes(
         parsed.protocol
       )
