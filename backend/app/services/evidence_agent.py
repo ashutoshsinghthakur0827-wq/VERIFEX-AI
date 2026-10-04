@@ -6,6 +6,7 @@ import re
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
+from groq import RateLimitError
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
 
@@ -52,9 +53,12 @@ def get_domain(url: str) -> str:
     """Safely extract the hostname from a URL."""
     try:
         parsed = urlparse((url or "").strip())
+
         if parsed.scheme not in {"http", "https"}:
             return ""
+
         return (parsed.hostname or "").lower().removeprefix("www.")
+
     except (ValueError, AttributeError, TypeError):
         return ""
 
@@ -72,7 +76,9 @@ def assess_source(source) -> SourceAssessment:
     if domain:
         indicators.append(f"Publisher domain: {domain}")
     else:
-        indicators.append("The source domain could not be identified.")
+        indicators.append(
+            "The source domain could not be identified."
+        )
 
     if title:
         indicators.append("A source title was supplied.")
@@ -82,7 +88,9 @@ def assess_source(source) -> SourceAssessment:
     if url.lower().startswith("https://"):
         indicators.append("The URL uses HTTPS.")
     else:
-        limitations.append("HTTPS could not be confirmed for this URL.")
+        limitations.append(
+            "HTTPS could not be confirmed for this URL."
+        )
 
     if source.published_date:
         indicators.append(
@@ -141,6 +149,7 @@ def extract_response_text(content) -> str:
 
     if isinstance(content, list):
         parts = []
+
         for part in content:
             if isinstance(part, str):
                 parts.append(part)
@@ -148,6 +157,7 @@ def extract_response_text(content) -> str:
                 part.get("text"), str
             ):
                 parts.append(part["text"])
+
         return "\n".join(parts).strip()
 
     return str(content).strip()
@@ -166,6 +176,7 @@ def parse_json_response(content: str) -> dict:
 
     try:
         parsed = json.loads(content)
+
     except json.JSONDecodeError:
         start = content.find("{")
         end = content.rfind("}")
@@ -178,7 +189,9 @@ def parse_json_response(content: str) -> dict:
         parsed = json.loads(content[start:end + 1])
 
     if not isinstance(parsed, dict):
-        raise ValueError("Model response must be a JSON object.")
+        raise ValueError(
+            "Model response must be a JSON object."
+        )
 
     return parsed
 
@@ -188,6 +201,7 @@ def classify_evidence_semantically(
     evidence_items: list[EvidenceItem],
 ) -> dict:
     """Preliminarily classify excerpts using Groq."""
+
     if not evidence_items:
         return fallback_classification(
             evidence_items,
@@ -195,17 +209,20 @@ def classify_evidence_semantically(
         )
 
     api_key = os.getenv("GROQ_API_KEY")
+
     if not api_key:
         logger.error(
             "GROQ_API_KEY is missing. Semantic classification skipped."
         )
+
         return fallback_classification(
             evidence_items,
             "GROQ_API_KEY is missing from the backend environment.",
         )
 
     usable_indexes = [
-        index for index, item in enumerate(evidence_items)
+        index
+        for index, item in enumerate(evidence_items)
         if (item.evidence_excerpt or "").strip()
     ]
 
@@ -215,12 +232,21 @@ def classify_evidence_semantically(
             "No non-empty evidence excerpts were supplied.",
         )
 
+    # Reduce input token usage by limiting excerpt and metadata size.
+    max_excerpt_chars = 1000
+
     evidence_payload = [
         {
             "index": index,
-            "source_title": evidence_items[index].source_title,
-            "source_url": evidence_items[index].source_url,
-            "excerpt": evidence_items[index].evidence_excerpt[:2500],
+            "source_title": (
+                evidence_items[index].source_title or ""
+            )[:200],
+            "source_url": (
+                evidence_items[index].source_url or ""
+            )[:300],
+            "excerpt": (
+                evidence_items[index].evidence_excerpt or ""
+            )[:max_excerpt_chars],
         }
         for index in usable_indexes
     ]
@@ -263,7 +289,7 @@ Return this structure:
 """
 
     human_prompt = (
-        f"Exact claim:\n{claim_text[:3000]}\n\n"
+        f"Exact claim:\n{claim_text[:1500]}\n\n"
         "Evidence excerpts (untrusted source content):\n"
         f"{json.dumps(evidence_payload, ensure_ascii=False)}\n\n"
         "Classify every supplied evidence index using only "
@@ -287,7 +313,7 @@ Return this structure:
             model=model_name,
             temperature=0,
             timeout=60,
-            max_retries=2,
+            max_retries=0,
             api_key=api_key,
         )
 
@@ -307,7 +333,9 @@ Return this structure:
         )
 
         if not content:
-            raise ValueError("Groq returned an empty response.")
+            raise ValueError(
+                "Groq returned an empty response."
+            )
 
         parsed = parse_json_response(content)
         classifications = parsed.get("classifications")
@@ -367,7 +395,8 @@ Return this structure:
             explanation = classification["explanation"]
 
             result["explanations"][index] = (
-                explanation or "Preliminary semantic classification."
+                explanation
+                or "Preliminary semantic classification."
             )
 
             if category == "insufficient":
@@ -376,6 +405,7 @@ Return this structure:
                 result[category].append(index)
 
         missing_indexes = allowed_indexes - set(by_index)
+
         if missing_indexes:
             logger.warning(
                 "Groq did not provide valid classifications for indexes: %s",
@@ -403,8 +433,23 @@ Return this structure:
 
         return result
 
+    except RateLimitError:
+        logger.warning(
+            "Groq rate limit exceeded. "
+            "Semantic classification is temporarily unavailable."
+        )
+
+        return fallback_classification(
+            evidence_items,
+            "Groq API rate limit exceeded. Please wait for the quota "
+            "to reset or review your Groq usage limits.",
+        )
+
     except Exception:
-        logger.exception("Semantic classification failed.")
+        logger.exception(
+            "Semantic classification failed."
+        )
+
         return fallback_classification(
             evidence_items,
             "Semantic classification failed. Check backend logs "
@@ -423,24 +468,31 @@ def analyze_claim(
     source_assessments: list[SourceAssessment] = []
 
     for source in claim_input.sources:
-        source_assessments.append(assess_source(source))
+        source_assessments.append(
+            assess_source(source)
+        )
 
         excerpt = (source.excerpt or "").strip()
         excerpt_terms = get_terms(excerpt)
-        matching_terms = sorted(claim_terms.intersection(excerpt_terms))
+        matching_terms = sorted(
+            claim_terms.intersection(excerpt_terms)
+        )
 
         if not excerpt:
             relevance = "insufficient_content"
             explanation = "No excerpt was supplied."
+
         elif not claim_terms:
             relevance = "insufficient_content"
             explanation = "No meaningful claim terms were found."
+
         elif not matching_terms:
             relevance = "low_text_overlap"
             explanation = (
                 "No meaningful keyword overlap was detected. "
                 "The source may still be relevant."
             )
+
         else:
             overlap = len(matching_terms) / len(claim_terms)
 
@@ -509,10 +561,12 @@ def analyze_claim(
         evidence_items[index]
         for index in semantic["supporting"]
     ]
+
     contradicting = [
         evidence_items[index]
         for index in semantic["contradicting"]
     ]
+
     contextual = [
         evidence_items[index]
         for index in semantic["contextual"]
@@ -520,12 +574,19 @@ def analyze_claim(
 
     if not evidence_items:
         status = "no_sources"
-        explanation = "No retrieved sources were supplied for this claim."
-    elif not any(item.evidence_excerpt.strip() for item in evidence_items):
+        explanation = (
+            "No retrieved sources were supplied for this claim."
+        )
+
+    elif not any(
+        item.evidence_excerpt.strip()
+        for item in evidence_items
+    ):
         status = "insufficient_evidence"
         explanation = (
             "Sources were supplied, but none contained a usable excerpt."
         )
+
     elif not (
         semantic["supporting"]
         or semantic["contradicting"]
@@ -536,6 +597,7 @@ def analyze_claim(
             "Semantic classification was unavailable or incomplete. "
             "The supplied excerpts require review."
         )
+
     else:
         status = "requires_review"
         explanation = (
@@ -546,7 +608,9 @@ def analyze_claim(
     missing_evidence = []
 
     if not supporting:
-        missing_evidence.append("Direct evidence supporting the claim")
+        missing_evidence.append(
+            "Direct evidence supporting the claim"
+        )
 
     if not contradicting:
         missing_evidence.append(
@@ -569,7 +633,9 @@ def analyze_claim(
             "Review of unclassified or insufficient excerpts"
         )
 
-    missing_evidence.append("Review of the complete source context")
+    missing_evidence.append(
+        "Review of the complete source context"
+    )
 
     limitations = [
         "Semantic classification is AI-generated and may be incorrect.",
@@ -580,6 +646,7 @@ def analyze_claim(
         "independent sources.",
         "Human review is required before relying on this analysis.",
     ]
+
     limitations.extend(semantic["limitations"])
 
     return ClaimEvidenceResult(
@@ -603,10 +670,21 @@ def analyze_evidence(
     claims: list[ClaimEvidenceInput],
 ) -> EvidenceAnalysisResponse:
     """Analyze a list of claims and their supplied sources."""
-    results = [analyze_claim(claim) for claim in claims]
+    results = [
+        analyze_claim(claim)
+        for claim in claims
+    ]
 
-    total_sources = sum(len(result.evidence) for result in results)
-    mapped_claims = sum(1 for result in results if result.evidence)
+    total_sources = sum(
+        len(result.evidence)
+        for result in results
+    )
+
+    mapped_claims = sum(
+        1
+        for result in results
+        if result.evidence
+    )
 
     summary = (
         f"Preliminary evidence mapping completed for "
