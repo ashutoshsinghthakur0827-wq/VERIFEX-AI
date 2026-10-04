@@ -26,6 +26,7 @@ allowed_origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "https://verifex-ai.vercel.app",
+    "https://verifex-cihba2ew9-hack-tech.vercel.app",
 ]
 
 if VERCEL_URL:
