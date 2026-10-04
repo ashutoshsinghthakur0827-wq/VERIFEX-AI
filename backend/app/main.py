@@ -1,4 +1,6 @@
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -16,8 +18,17 @@ from app.api.routes import verification
 from app.api.routes.report import router as report_router
 
 
-# Create database tables
-Base.metadata.create_all(bind=engine)
+# CORS configuration
+# Set FRONTEND_URL in Render to your actual Vercel domain.
+VERCEL_URL = os.getenv("FRONTEND_URL", "").strip().rstrip("/")
+
+allowed_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+if VERCEL_URL:
+    allowed_origins.append(VERCEL_URL)
 
 
 # Initialize FastAPI application
@@ -31,17 +42,21 @@ app = FastAPI(
 )
 
 
-# CORS configuration for React + Vite frontend
+# CORS middleware for React + Vite frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Create database tables
+# Ensure DATABASE_URL is correctly configured in Render.
+@app.on_event("startup")
+def create_database_tables():
+    Base.metadata.create_all(bind=engine)
 
 
 # Register API routers
