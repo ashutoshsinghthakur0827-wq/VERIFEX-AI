@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import "./Intake.css";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "https://verifex-ai.onrender.com";
 
 function Intake({ onContentReady }) {
   const [activeTab, setActiveTab] = useState("text");
