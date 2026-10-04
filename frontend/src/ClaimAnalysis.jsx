@@ -12,7 +12,7 @@ import {
 import ResearchAgent from "./ResearchAgent";
 import "./ClaimAnalysis.css";
 
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = "https://verifex-ai.onrender.com";
 
 export default function ClaimAnalysis({
   content = "",
