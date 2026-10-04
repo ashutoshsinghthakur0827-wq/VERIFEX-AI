@@ -25,6 +25,7 @@ VERCEL_URL = os.getenv("FRONTEND_URL", "").strip().rstrip("/")
 allowed_origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "https://verifex-ai.vercel.app",
 ]
 
 if VERCEL_URL:
