@@ -15,7 +15,7 @@ function VerificationAgent({
   claims = [],
   evidenceResults,
   onResults,
-  apiUrl = "http://127.0.0.1:8000/api/verification/analyze",
+  apiUrl = "https://verifex-ai.onrender.com/api/verification/analyze",
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -223,7 +223,6 @@ function VerificationAgent({
       return;
     }
 
-    // Helpful debugging information in the browser console.
     console.log("Claims sent for verification:", validClaims);
 
     console.log(
@@ -272,7 +271,7 @@ function VerificationAgent({
               : JSON.stringify(data.detail || data);
 
           throw new Error(
-            detail || "Verification request failed."
+            detail || `Verification request failed (${response.status}).`
           );
         }
 
