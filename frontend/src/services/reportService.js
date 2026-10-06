@@ -1,6 +1,6 @@
-
 const API_BASE_URL = (
-  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://verifex-ai.onrender.com"
 ).replace(/\/$/, "");
 
 export async function downloadReportPDF(reportData) {
@@ -24,18 +24,22 @@ export async function downloadReportPDF(reportData) {
 
     try {
       const errorData = await response.json();
+
       message =
         typeof errorData.detail === "string"
           ? errorData.detail
-          : JSON.stringify(errorData.detail || errorData);
+          : JSON.stringify(
+              errorData.detail || errorData
+            );
     } catch {
-      // Keep the default error message.
+      // Keep default error message
     }
 
     throw new Error(message);
   }
 
-  const contentType = response.headers.get("content-type") || "";
+  const contentType =
+    response.headers.get("content-type") || "";
 
   if (!contentType.includes("application/pdf")) {
     throw new Error("The server did not return a PDF file");
